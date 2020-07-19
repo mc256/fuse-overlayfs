@@ -1,0 +1,14 @@
+FROM docker.io/ubuntu:rolling
+WORKDIR /build
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+        libc6-dev gcc g++ make automake autoconf clang pkgconf libfuse3-dev
+
+RUN cp -r fuse-overlayfs fuse-overlayfs-temp &&\
+	cd fuse-overlayfs-temp && \
+    sh autogen.sh && \
+    LIBS="-ldl" LDFLAGS="-static" ./configure --prefix /usr && \
+    make && \
+    cp fuse-overlayfs ../fuse-overlayfs/fuse-overlayfs && \
+    chown 1000:1000 ../fuse-overlayfs/fuse-overlayfs
+
