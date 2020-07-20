@@ -1,0 +1,11 @@
+FROM docker-registry.yuri.moe/overlayfs-buildenv
+WORKDIR /build
+
+RUN cp -r fuse-overlayfs fuse-overlayfs-temp &&\
+	cd fuse-overlayfs-temp && \
+    sh autogen.sh && \
+    LIBS="-ldl" LDFLAGS="-static" ./configure --prefix /usr && \
+    make && \
+    cp fuse-overlayfs ../fuse-overlayfs/fuse-overlayfs && \
+    chown 1000:1000 ../fuse-overlayfs/fuse-overlayfs
+
