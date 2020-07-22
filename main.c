@@ -5172,6 +5172,9 @@ main (int argc, char *argv[])
 
 
   // Upper Layer - No testing for the lower layers?
+  if (lo.mountpoint == NULL)
+    error (EXIT_FAILURE, 0, "no mountpoint specified");
+
   if (lo.upperdir != NULL)
     {
       cleanup_free char *full_path = NULL;
