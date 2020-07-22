@@ -229,6 +229,18 @@ struct ovl_fh
   u8 fid[0];   /* file identifier */
 } __packed;
 
+//====================================================================================================
+static void 
+maverick_print_ovl_node(struct ovl_node *n)
+{
+  if (n != NULL)
+  {
+    fprintf (stderr, "ovl_node(\n d=>%s\n f=>%s\n)\n", n->path, n->name);
+  }
+
+}
+//====================================================================================================
+
 static struct ovl_data *
 ovl_data (fuse_req_t req)
 {
@@ -1730,7 +1742,10 @@ do_lookup_file (struct ovl_data *lo, fuse_ino_t parent, const char *name)
     pnode = inode_to_node (lo, parent);
 
   if (name == NULL)
+  {
+    maverick_print_ovl_node(pnode);
     return pnode;
+  }
 
   if (has_prefix (name, ".wh."))
     {
@@ -1842,6 +1857,7 @@ insert_node:
         }
     }
 
+  maverick_print_ovl_node(node);
   return node;
 }
 
@@ -5130,6 +5146,7 @@ main (int argc, char *argv[])
 
   pthread_mutex_init (&lock, PTHREAD_MUTEX_DEFAULT);
 
+  // Help
   if (opts.show_help)
     {
       printf ("usage: %s [options] <mountpoint>\n\n", argv[0]);
@@ -5137,6 +5154,7 @@ main (int argc, char *argv[])
       fuse_lowlevel_help ();
       exit (EXIT_SUCCESS);
     }
+  // Version
   else if (opts.show_version)
     {
       printf ("fuse-overlayfs: version %s\n", PACKAGE_VERSION);
@@ -5148,9 +5166,12 @@ main (int argc, char *argv[])
   lo.uid = geteuid ();
   lo.gid = getegid ();
 
+  // Directory - no redirect directory
   if (lo.redirect_dir && strcmp (lo.redirect_dir, "off"))
     error (EXIT_FAILURE, 0, "fuse-overlayfs only supports redirect_dir=off");
 
+
+  // Upper Layer - No testing for the lower layers?
   if (lo.mountpoint == NULL)
     error (EXIT_FAILURE, 0, "no mountpoint specified");
 
@@ -5170,6 +5191,7 @@ main (int argc, char *argv[])
   set_limits ();
   check_can_mknod (&lo);
 
+  // Debug Information
   if (lo.debug)
     {
       fprintf (stderr, "uid=%s\n", lo.uid_str ? : "unchanged");
@@ -5181,10 +5203,13 @@ main (int argc, char *argv[])
       fprintf (stderr, "plugins=%s\n", lo.plugins ? lo.plugins : "<none>");
     }
 
+  // Permission Mapping
   lo.uid_mappings = lo.uid_str ? read_mappings (lo.uid_str) : NULL;
   lo.gid_mappings = lo.gid_str ? read_mappings (lo.gid_str) : NULL;
 
   errno = 0;
+
+  // Timeout
   if (lo.timeout_str)
     {
       lo.timeout = strtod (lo.timeout_str, NULL);
@@ -5192,17 +5217,22 @@ main (int argc, char *argv[])
         error (EXIT_FAILURE, errno, "cannot convert %s", lo.timeout_str);
     }
 
+  // Plugins
   if (lo.plugins == NULL)
     lo.plugins = load_default_plugins ();
 
   lo.plugins_ctx = load_plugins (lo.plugins);
 
+
+  // Lower Layers
   layers = read_dirs (&lo, lo.lowerdir, true, NULL);
   if (layers == NULL)
     {
       error (EXIT_FAILURE, errno, "cannot read lower dirs");
     }
 
+
+  // Upper Layers
   if (lo.upperdir != NULL)
     {
       tmp_layer = read_dirs (&lo, lo.upperdir, false, layers);
@@ -5212,6 +5242,7 @@ main (int argc, char *argv[])
     }
   lo.layers = layers;
 
+  //inodes
   lo.inodes = hash_initialize (2048, NULL, node_inode_hasher, node_inode_compare, inode_free);
 
   lo.root = load_dir (&lo, NULL, lo.layers, ".", "");
@@ -5219,8 +5250,10 @@ main (int argc, char *argv[])
     error (EXIT_FAILURE, errno, "cannot read upper dir");
   lo.root->ino->lookups = 2;
 
+  // Work dir
   if (lo.workdir == NULL && lo.upperdir != NULL)
     error (EXIT_FAILURE, 0, "workdir not specified");
+
 
   if (lo.workdir)
     {
@@ -5251,6 +5284,9 @@ main (int argc, char *argv[])
   umask (0);
   disable_locking = !lo.threaded;
 
+
+  // ------------------------------------------------------------------
+  // FUSE session
   se = fuse_session_new (&args, &ovl_oper, sizeof (ovl_oper), &lo);
   lo.se = se;
   if (se == NULL)
@@ -5270,11 +5306,19 @@ main (int argc, char *argv[])
     }
   fuse_daemonize (opts.foreground);
 
+  // session loop
   if (lo.threaded)
+  {
+    printf("fuse session loop mt\n");
     ret = fuse_session_loop_mt (se, &fuse_conf);
+  }
   else
-    ret = fuse_session_loop (se);
+  {
+    printf("fuse session loop mt\n");
+    ret = fuse_session_loop (se);    
+  }
 
+  // Terminate
   fuse_session_unmount (se);
 err_out3:
   fuse_remove_signal_handlers (se);
